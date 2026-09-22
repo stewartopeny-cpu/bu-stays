@@ -1,10 +1,153 @@
-const loginView=document.querySelector("#loginView"),dashboard=document.querySelector("#dashboard"),form=document.querySelector("#hostelForm"),select=document.querySelector("#hostelSelect");
-let hostels=[...window.DEFAULT_HOSTELS];
-const setLogin=loggedIn=>{loginView.hidden=loggedIn;dashboard.hidden=!loggedIn;document.querySelector("#logout").hidden=!loggedIn;if(loggedIn)loadDashboard()};
-document.querySelector("#loginForm").addEventListener("submit",async e=>{e.preventDefault();const message=document.querySelector("#loginMessage");message.textContent="Signing in…";const password=new FormData(e.currentTarget).get("password");const response=await fetch("/api/manager/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({password})});const result=await response.json();if(response.ok)setLogin(true);else message.textContent=result.error||"Sign-in failed"});
-document.querySelector("#logout").addEventListener("click",async()=>{await fetch("/api/manager/logout",{method:"POST"});setLogin(false)});
-async function loadDashboard(){const response=await fetch("/api/manager/hostels");if(response.status===401){setLogin(false);return}const data=await response.json();document.querySelector("#dbNotice").hidden=data.database!==false;const map=new Map(hostels.map(h=>[h.name,{...h}]));for(const change of data.hostels||[])map.set(change.name,{...(map.get(change.name)||{}),...change});hostels=[...map.values()];select.innerHTML='<option value="">New hostel</option>'+hostels.map((h,i)=>`<option value="${i}">${h.name}</option>`).join("");await loadBookings()}
-select.addEventListener("change",()=>{form.reset();if(select.value==="")return;const h=hostels[Number(select.value)];for(const [key,value] of Object.entries(h)){if(!form.elements[key])continue;form.elements[key].value=Array.isArray(value)?value.join(", "):value??""}});
-form.addEventListener("submit",async e=>{e.preventDefault();const message=document.querySelector("#saveMessage");const input=Object.fromEntries(new FormData(form));input.minPrice=Number(input.minPrice);input.maxPrice=Number(input.maxPrice);message.textContent="Saving…";const response=await fetch("/api/manager/hostels",{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify(input)});const data=await response.json();message.textContent=response.ok?"Listing saved successfully.":data.error||"Could not save";if(response.ok)loadDashboard()});
-async function loadBookings(){const response=await fetch("/api/manager/bookings");const box=document.querySelector("#bookings");if(!response.ok){box.innerHTML="<p>Bookings will appear after the database is connected.</p>";return}const data=await response.json();box.innerHTML=(data.bookings||[]).map(b=>`<div class="booking-row"><strong>${b.full_name}</strong> · ${b.hostel_name}<p>${b.phone}${b.email?` · ${b.email}`:""}<br>${b.room_type} · Reference ${b.reference}</p><select data-id="${b.id}"><option ${b.status==="pending"?"selected":""}>pending</option><option ${b.status==="contacted"?"selected":""}>contacted</option><option ${b.status==="confirmed"?"selected":""}>confirmed</option><option ${b.status==="cancelled"?"selected":""}>cancelled</option></select></div>`).join("")||"<p>No room requests yet.</p>";box.querySelectorAll("select").forEach(s=>s.addEventListener("change",()=>fetch("/api/manager/bookings",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify({id:Number(s.dataset.id),status:s.value})})))}
-fetch("/api/manager/hostels").then(r=>setLogin(r.status!==401)).catch(()=>setLogin(false));
+const loginView = document.querySelector("#loginView");
+const dashboard = document.querySelector("#dashboard");
+const form = document.querySelector("#hostelForm");
+const select = document.querySelector("#hostelSelect");
+const photoFiles = document.querySelector("#photoFiles");
+const photoMessage = document.querySelector("#photoMessage");
+const photoPreviews = document.querySelector("#photoPreviews");
+let hostels = [...window.DEFAULT_HOSTELS];
+let photoUrls = [];
+
+const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, character => ({
+  "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
+}[character]));
+
+const setLogin = loggedIn => {
+  loginView.hidden = loggedIn;
+  dashboard.hidden = !loggedIn;
+  document.querySelector("#logout").hidden = !loggedIn;
+  if (loggedIn) loadDashboard();
+};
+
+document.querySelector("#loginForm").addEventListener("submit", async event => {
+  event.preventDefault();
+  const message = document.querySelector("#loginMessage");
+  message.textContent = "Signing in…";
+  const password = new FormData(event.currentTarget).get("password");
+  const response = await fetch("/api/manager/login", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ password })
+  });
+  const result = await response.json();
+  if (response.ok) setLogin(true); else message.textContent = result.error || "Sign-in failed";
+});
+
+document.querySelector("#logout").addEventListener("click", async () => {
+  await fetch("/api/manager/logout", { method: "POST" });
+  setLogin(false);
+});
+
+async function loadDashboard() {
+  const response = await fetch("/api/manager/hostels");
+  if (response.status === 401) { setLogin(false); return; }
+  const data = await response.json();
+  document.querySelector("#dbNotice").hidden = data.database !== false;
+  const map = new Map(window.DEFAULT_HOSTELS.map(hostel => [hostel.name, { ...hostel }]));
+  for (const change of data.hostels || []) map.set(change.name, { ...(map.get(change.name) || {}), ...change });
+  hostels = [...map.values()];
+  select.innerHTML = '<option value="">New hostel</option>' + hostels.map((hostel, index) =>
+    `<option value="${index}">${escapeHtml(hostel.name)}</option>`).join("");
+  await loadBookings();
+}
+
+function renderPhotoPreviews() {
+  photoPreviews.innerHTML = photoUrls.map((url, index) => `
+    <figure class="photo-preview">
+      <img src="${escapeHtml(url)}" alt="Hostel photo ${index + 1}">
+      <button type="button" class="remove-photo" data-index="${index}" aria-label="Remove photo ${index + 1}">Remove</button>
+    </figure>`).join("");
+  photoPreviews.querySelectorAll(".remove-photo").forEach(button => button.addEventListener("click", async () => {
+    const index = Number(button.dataset.index);
+    const url = photoUrls[index];
+    button.disabled = true;
+    photoMessage.textContent = "Removing photo…";
+    const response = await fetch("/api/manager/photos", {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ url })
+    });
+    const data = await response.json();
+    if (!response.ok) { photoMessage.textContent = data.error || "Could not remove photo"; button.disabled = false; return; }
+    photoUrls.splice(index, 1);
+    photoMessage.textContent = "Photo removed. Save the listing to keep this change.";
+    renderPhotoPreviews();
+  }));
+}
+
+select.addEventListener("change", () => {
+  const selected = select.value;
+  form.reset();
+  select.value = selected;
+  photoUrls = [];
+  photoMessage.textContent = "";
+  if (selected === "") { renderPhotoPreviews(); return; }
+  const hostel = hostels[Number(selected)];
+  for (const [key, value] of Object.entries(hostel)) {
+    if (!form.elements[key]) continue;
+    form.elements[key].value = Array.isArray(value) ? value.join(", ") : value ?? "";
+  }
+  photoUrls = Array.isArray(hostel.photos) ? hostel.photos.slice(0, 5) : [];
+  renderPhotoPreviews();
+});
+
+document.querySelector("#uploadPhotos").addEventListener("click", async () => {
+  const hostelName = form.elements.name.value.trim();
+  const files = [...photoFiles.files];
+  if (!hostelName) { photoMessage.textContent = "Choose or enter the hostel name first."; return; }
+  if (!files.length) { photoMessage.textContent = "Select at least one photo."; return; }
+  if (photoUrls.length + files.length > 5) { photoMessage.textContent = "A hostel can have a maximum of five photos."; return; }
+  const button = document.querySelector("#uploadPhotos");
+  button.disabled = true;
+  try {
+    for (let index = 0; index < files.length; index += 1) {
+      photoMessage.textContent = `Uploading photo ${index + 1} of ${files.length}…`;
+      const upload = new FormData();
+      upload.append("photo", files[index]);
+      const response = await fetch(`/api/manager/photos?hostel=${encodeURIComponent(hostelName)}`, { method: "POST", body: upload });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Photo upload failed");
+      photoUrls.push(data.url);
+      renderPhotoPreviews();
+    }
+    photoFiles.value = "";
+    photoMessage.textContent = "Photos uploaded. Now save the listing.";
+  } catch (error) {
+    photoMessage.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+form.addEventListener("submit", async event => {
+  event.preventDefault();
+  const message = document.querySelector("#saveMessage");
+  const input = Object.fromEntries(new FormData(form));
+  input.minPrice = Number(input.minPrice);
+  input.maxPrice = Number(input.maxPrice);
+  input.photos = photoUrls;
+  message.textContent = "Saving…";
+  const response = await fetch("/api/manager/hostels", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  const data = await response.json();
+  message.textContent = response.ok ? "Listing and photos saved successfully." : data.error || "Could not save";
+  if (response.ok) loadDashboard();
+});
+
+async function loadBookings() {
+  const response = await fetch("/api/manager/bookings");
+  const box = document.querySelector("#bookings");
+  if (!response.ok) { box.innerHTML = "<p>Bookings will appear after the database is connected.</p>"; return; }
+  const data = await response.json();
+  box.innerHTML = (data.bookings || []).map(booking => `<div class="booking-row"><strong>${escapeHtml(booking.full_name)}</strong> · ${escapeHtml(booking.hostel_name)}<p>${escapeHtml(booking.phone)}${booking.email ? ` · ${escapeHtml(booking.email)}` : ""}<br>${escapeHtml(booking.room_type)} · Reference ${escapeHtml(booking.reference)}</p><select data-id="${Number(booking.id)}"><option ${booking.status === "pending" ? "selected" : ""}>pending</option><option ${booking.status === "contacted" ? "selected" : ""}>contacted</option><option ${booking.status === "confirmed" ? "selected" : ""}>confirmed</option><option ${booking.status === "cancelled" ? "selected" : ""}>cancelled</option></select></div>`).join("") || "<p>No room requests yet.</p>";
+  box.querySelectorAll("select").forEach(status => status.addEventListener("change", () => fetch("/api/manager/bookings", {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ id: Number(status.dataset.id), status: status.value })
+  })));
+}
+
+fetch("/api/manager/hostels").then(response => setLogin(response.status !== 401)).catch(() => setLogin(false));

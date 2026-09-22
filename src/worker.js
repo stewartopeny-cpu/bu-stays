@@ -27,6 +27,32 @@ const dbRequired = env => {
   return env.DB;
 };
 
+const photosRequired = env => {
+  if (!env.PHOTOS) throw new Error("Photo storage not connected. Add an R2 binding named PHOTOS.");
+  return env.PHOTOS;
+};
+
+const IMAGE_TYPES = new Map([
+  ["image/jpeg", "jpg"],
+  ["image/png", "png"],
+  ["image/webp", "webp"]
+]);
+const MAX_PHOTO_SIZE = 5 * 1024 * 1024;
+
+const safeSlug = value => String(value || "hostel")
+  .toLowerCase()
+  .normalize("NFKD")
+  .replace(/[^a-z0-9]+/g, "-")
+  .replace(/^-+|-+$/g, "")
+  .slice(0, 60) || "hostel";
+
+function photoKeyFromUrl(value) {
+  const prefix = "/photos/";
+  const text = String(value || "");
+  if (!text.startsWith(prefix)) return null;
+  try { return decodeURIComponent(text.slice(prefix.length)); } catch { return null; }
+}
+
 async function body(request) {
   try { return await request.json(); } catch { return {}; }
 }
@@ -90,6 +116,31 @@ async function api(request, env) {
     return reply({ ok: true });
   }
 
+  if (path === "/api/manager/photos" && request.method === "POST") {
+    const hostelName = String(url.searchParams.get("hostel") || "").trim();
+    if (!hostelName) return reply({ error: "Choose or enter a hostel name first" }, 400);
+    const form = await request.formData();
+    const photo = form.get("photo");
+    if (!photo || typeof photo.arrayBuffer !== "function") return reply({ error: "Select a photo to upload" }, 400);
+    const extension = IMAGE_TYPES.get(photo.type);
+    if (!extension) return reply({ error: "Only JPG, PNG and WebP photos are allowed" }, 415);
+    if (photo.size > MAX_PHOTO_SIZE) return reply({ error: "Each photo must be 5 MB or smaller" }, 413);
+    const key = `hostels/${safeSlug(hostelName)}/${crypto.randomUUID()}.${extension}`;
+    await photosRequired(env).put(key, await photo.arrayBuffer(), {
+      httpMetadata: { contentType: photo.type, cacheControl: "public, max-age=31536000, immutable" },
+      customMetadata: { hostel: hostelName }
+    });
+    return reply({ ok: true, url: `/photos/${encodeURIComponent(key)}` }, 201);
+  }
+
+  if (path === "/api/manager/photos" && request.method === "DELETE") {
+    const input = await body(request);
+    const key = photoKeyFromUrl(input.url);
+    if (!key || !key.startsWith("hostels/")) return reply({ error: "Invalid photo" }, 400);
+    await photosRequired(env).delete(key);
+    return reply({ ok: true });
+  }
+
   if (path === "/api/manager/bookings" && request.method === "GET") {
     const result = await dbRequired(env).prepare("SELECT * FROM bookings ORDER BY created_at DESC").all();
     return reply({ bookings: result.results });
@@ -112,6 +163,19 @@ export default {
     try {
       const url = new URL(request.url);
       if (url.pathname.startsWith("/api/")) return await api(request, env);
+      if (url.pathname.startsWith("/photos/")) {
+        if (!env.PHOTOS) return new Response("Photo storage is not connected", { status: 503 });
+        const key = photoKeyFromUrl(url.pathname);
+        if (!key || !key.startsWith("hostels/")) return new Response("Not found", { status: 404 });
+        const object = await env.PHOTOS.get(key);
+        if (!object) return new Response("Not found", { status: 404 });
+        const headers = new Headers();
+        object.writeHttpMetadata(headers);
+        headers.set("etag", object.httpEtag);
+        headers.set("x-content-type-options", "nosniff");
+        headers.set("cache-control", "public, max-age=31536000, immutable");
+        return new Response(object.body, { headers });
+      }
       return env.ASSETS.fetch(request);
     } catch (error) {
       console.error(error);

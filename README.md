@@ -2,6 +2,14 @@
 
 This edition intentionally uses no React, Next.js, Vinext, Vite, or framework build step. Cloudflare uploads one standard Worker and the files in `public/`.
 
+## Before deploying: create photo storage
+
+1. In Cloudflare, open **R2 Object Storage**.
+2. Create a bucket named exactly `busitema-hostel-photos`.
+3. Leave the bucket private. The Worker securely serves the photos through the website.
+
+The source already contains an R2 binding named `PHOTOS`. Create the bucket before deploying so the deployment can connect successfully.
+
 ## Deploy from GitHub
 
 1. Upload the **contents of this folder** to the root of a GitHub repository.
@@ -25,6 +33,18 @@ This edition intentionally uses no React, Next.js, Vinext, Vite, or framework bu
 6. Redeploy once so the new settings are active.
 
 The public hostel catalogue works even before D1 is connected. Bookings and manager changes require D1.
+
+## Add hostel photos
+
+1. Open the live website's **Manager** page and sign in.
+2. Choose a hostel from **Edit a hostel**.
+3. Under **Hostel photos**, select up to five JPG, PNG or WebP files. Each file must be 5 MB or smaller.
+4. Select **Upload selected photos**.
+5. After the previews appear, select **Save listing**.
+
+Students can swipe horizontally through multiple photos on the public hostel cards. Only signed-in managers can upload or remove photos. No new D1 migration is needed for this feature.
+
+If the dashboard reports that photo storage is not connected, confirm that the R2 bucket is named `busitema-hostel-photos` and that the Worker has an R2 binding named exactly `PHOTOS`.
 
 ## Test on a computer
 
