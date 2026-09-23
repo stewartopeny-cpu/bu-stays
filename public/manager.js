@@ -7,6 +7,7 @@ const photoMessage = document.querySelector("#photoMessage");
 const photoPreviews = document.querySelector("#photoPreviews");
 let hostels = [...window.DEFAULT_HOSTELS];
 let photoUrls = [];
+let selectedOriginalName = "";
 
 const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, character => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
@@ -44,11 +45,45 @@ async function loadDashboard() {
   const data = await response.json();
   document.querySelector("#dbNotice").hidden = data.database !== false;
   const map = new Map(window.DEFAULT_HOSTELS.map(hostel => [hostel.name, { ...hostel }]));
-  for (const change of data.hostels || []) map.set(change.name, { ...(map.get(change.name) || {}), ...change });
+  for (const change of data.hostels || []) {
+    if (change.status === "deleted") map.delete(change.name);
+    else map.set(change.name, { ...(map.get(change.name) || {}), ...change });
+  }
   hostels = [...map.values()];
   select.innerHTML = '<option value="">New hostel</option>' + hostels.map((hostel, index) =>
-    `<option value="${index}">${escapeHtml(hostel.name)}</option>`).join("");
+    `<option value="${index}">${escapeHtml(hostel.name)}${hostel.status === "inactive" ? " · Hidden" : ""}</option>`).join("");
+  resetListingActions();
   await loadBookings();
+}
+
+function resetListingActions() {
+  selectedOriginalName = "";
+  document.querySelector("#toggleVisibility").hidden = true;
+  document.querySelector("#deleteHostel").hidden = true;
+}
+
+function listingPayload(statusOverride) {
+  const input = Object.fromEntries(new FormData(form));
+  input.minPrice = Number(input.minPrice);
+  input.maxPrice = Number(input.maxPrice);
+  input.photos = photoUrls;
+  input.originalName = selectedOriginalName || input.name;
+  if (statusOverride) input.status = statusOverride;
+  return input;
+}
+
+async function saveListing(input, successMessage) {
+  const message = document.querySelector("#saveMessage");
+  message.textContent = "Saving…";
+  const response = await fetch("/api/manager/hostels", {
+    method: "PUT",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input)
+  });
+  const data = await response.json();
+  message.textContent = response.ok ? successMessage : data.error || "Could not save";
+  if (response.ok) await loadDashboard();
+  return response.ok;
 }
 
 function renderPhotoPreviews() {
@@ -81,13 +116,19 @@ select.addEventListener("change", () => {
   select.value = selected;
   photoUrls = [];
   photoMessage.textContent = "";
+  resetListingActions();
   if (selected === "") { renderPhotoPreviews(); return; }
   const hostel = hostels[Number(selected)];
+  selectedOriginalName = hostel.name;
   for (const [key, value] of Object.entries(hostel)) {
     if (!form.elements[key]) continue;
     form.elements[key].value = Array.isArray(value) ? value.join(", ") : value ?? "";
   }
   photoUrls = Array.isArray(hostel.photos) ? hostel.photos.slice(0, 5) : [];
+  const visibilityButton = document.querySelector("#toggleVisibility");
+  visibilityButton.hidden = false;
+  visibilityButton.textContent = hostel.status === "inactive" ? "Show on public website" : "Hide from public website";
+  document.querySelector("#deleteHostel").hidden = false;
   renderPhotoPreviews();
 });
 
@@ -121,20 +162,34 @@ document.querySelector("#uploadPhotos").addEventListener("click", async () => {
 
 form.addEventListener("submit", async event => {
   event.preventDefault();
+  await saveListing(listingPayload(), "Listing and photos saved successfully.");
+});
+
+document.querySelector("#toggleVisibility").addEventListener("click", async () => {
+  if (!selectedOriginalName) return;
+  const isHidden = form.elements.status.value === "inactive";
+  const nextStatus = isHidden ? "active" : "inactive";
+  await saveListing(listingPayload(nextStatus), nextStatus === "inactive" ? "Hostel removed from the public website." : "Hostel is visible on the public website again.");
+});
+
+document.querySelector("#deleteHostel").addEventListener("click", async () => {
+  if (!selectedOriginalName) return;
+  if (!confirm(`Permanently delete ${selectedOriginalName}? This cannot be undone.`)) return;
   const message = document.querySelector("#saveMessage");
-  const input = Object.fromEntries(new FormData(form));
-  input.minPrice = Number(input.minPrice);
-  input.maxPrice = Number(input.maxPrice);
-  input.photos = photoUrls;
-  message.textContent = "Saving…";
+  message.textContent = "Deleting…";
   const response = await fetch("/api/manager/hostels", {
-    method: "PUT",
+    method: "DELETE",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify(input)
+    body: JSON.stringify({ name: selectedOriginalName, photos: photoUrls })
   });
   const data = await response.json();
-  message.textContent = response.ok ? "Listing and photos saved successfully." : data.error || "Could not save";
-  if (response.ok) loadDashboard();
+  message.textContent = response.ok ? "Hostel permanently deleted." : data.error || "Could not delete hostel";
+  if (response.ok) {
+    form.reset();
+    photoUrls = [];
+    renderPhotoPreviews();
+    await loadDashboard();
+  }
 });
 
 async function loadBookings() {
@@ -142,7 +197,7 @@ async function loadBookings() {
   const box = document.querySelector("#bookings");
   if (!response.ok) { box.innerHTML = "<p>Bookings will appear after the database is connected.</p>"; return; }
   const data = await response.json();
-  box.innerHTML = (data.bookings || []).map(booking => `<div class="booking-row"><strong>${escapeHtml(booking.full_name)}</strong> · ${escapeHtml(booking.hostel_name)}<p>${escapeHtml(booking.phone)}${booking.email ? ` · ${escapeHtml(booking.email)}` : ""}<br>${escapeHtml(booking.room_type)} · Reference ${escapeHtml(booking.reference)}</p><select data-id="${Number(booking.id)}"><option ${booking.status === "pending" ? "selected" : ""}>pending</option><option ${booking.status === "contacted" ? "selected" : ""}>contacted</option><option ${booking.status === "confirmed" ? "selected" : ""}>confirmed</option><option ${booking.status === "cancelled" ? "selected" : ""}>cancelled</option></select></div>`).join("") || "<p>No room requests yet.</p>";
+  box.innerHTML = (data.bookings || []).map(booking => `<div class="booking-row"><strong>${escapeHtml(booking.full_name)}</strong> · ${escapeHtml(booking.hostel_name)}${String(booking.message || "").startsWith("[Waiting list]") ? ' · <span class="waiting-label">Waiting list</span>' : ""}<p>${escapeHtml(booking.phone)}${booking.email ? ` · ${escapeHtml(booking.email)}` : ""}<br>${escapeHtml(booking.room_type)} · Reference ${escapeHtml(booking.reference)}</p><select data-id="${Number(booking.id)}"><option ${booking.status === "pending" ? "selected" : ""}>pending</option><option ${booking.status === "contacted" ? "selected" : ""}>contacted</option><option ${booking.status === "confirmed" ? "selected" : ""}>confirmed</option><option ${booking.status === "cancelled" ? "selected" : ""}>cancelled</option></select></div>`).join("") || "<p>No room requests yet.</p>";
   box.querySelectorAll("select").forEach(status => status.addEventListener("change", () => fetch("/api/manager/bookings", {
     method: "PATCH",
     headers: { "content-type": "application/json" },

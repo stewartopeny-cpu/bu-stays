@@ -35,7 +35,7 @@
       </div>
     </section>
 
-    <section class="results-head"><div><h2>Available hostels</h2><p id="resultCount"></p></div><button id="clearFilters" class="secondary">Clear filters</button></section>
+    <section class="results-head"><div><h2>Hostels near campus</h2><p id="resultCount"></p></div><button id="clearFilters" class="secondary">Clear filters</button></section>
     <section id="hostels" class="hostel-grid" aria-live="polite"></section>
     <div id="empty" class="empty" hidden><h2>No exact match</h2><p>Try increasing the price or selecting fewer services.</p></div>
   </main>
@@ -66,6 +66,13 @@
       <p id="bookingMessage" class="form-message"></p>
       <div class="dialog-actions"><button type="button" class="secondary cancel-dialog">Continue browsing</button><button class="primary" value="default">Send room request</button></div>
     </form>
+  </dialog>
+
+  <dialog id="exploreDialog" class="explore-dialog">
+    <div class="explore-sheet">
+      <button class="dialog-close explore-close" type="button" data-close-dialog aria-label="Close hostel details">×</button>
+      <div id="exploreContent"></div>
+    </div>
   </dialog>
   <script src="/data.js" defer></script>
   <script src="/app.js" defer></script>
