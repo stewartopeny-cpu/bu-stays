@@ -37,12 +37,18 @@ The public hostel catalogue works even before D1 is connected. Bookings and mana
 ## Add hostel photos
 
 1. Open the live website's **Manager** page and sign in.
-2. Choose a hostel from **Edit a hostel**.
+2. Choose a hostel from **Edit or remove a hostel**.
 3. Under **Hostel photos**, select up to five JPG, PNG or WebP files. Each file must be 5 MB or smaller.
 4. Select **Upload selected photos**.
-5. After the previews appear, select **Save listing**.
+5. After the previews appear, select **Save changes**.
+
+## Edit, hide or delete a hostel
+
+Open the live **Manager** page and choose a hostel. Change any details and select **Save changes**. Select **Hide from public website** to remove it from the public catalogue while keeping its details, or select **Show on public website** to restore it. Select **Delete hostel** only when the listing should be permanently removed. The delete action asks for confirmation and removes its uploaded photos too.
 
 Students can swipe horizontally through multiple photos on the public hostel cards. Only signed-in managers can upload or remove photos. No new D1 migration is needed for this feature.
+
+Students can select **Explore hostel** on every listing, including fully occupied hostels. The details view shows the hostel photos, room types, prices, distance, services and notes. An occupied hostel offers **Join waiting list**, and the resulting request is marked as a waiting-list request in the manager dashboard.
 
 If the dashboard reports that photo storage is not connected, confirm that the R2 bucket is named `busitema-hostel-photos` and that the Worker has an R2 binding named exactly `PHOTOS`.
 
