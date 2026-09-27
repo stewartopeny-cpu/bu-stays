@@ -25,11 +25,13 @@ The source already contains an R2 binding named `PHOTOS`. Create the bucket befo
 
 1. In Cloudflare, create a D1 database named `busitema-stays-db`.
 2. Open its Console and run `migrations/0001_initial.sql`.
+   - If the database already exists, also run `migrations/0002_booking_confirmation.sql` to enable the two-sided booking confirmation system.
 3. Open the deployed Worker → Settings → Bindings.
 4. Add a **D1 database** binding named exactly `DB` and select `busitema-stays-db`.
 5. Under Variables and Secrets add:
    - `MANAGER_PASSWORD` — your private manager password
    - `MANAGER_AUTH_SECRET` — any long random private phrase
+   - `BOOKING_CODE_SECRET` — a different long random private phrase used to create private student move-in codes
 6. Redeploy once so the new settings are active.
 
 The public hostel catalogue works even before D1 is connected. Bookings and manager changes require D1.
@@ -49,6 +51,10 @@ Open the live **Manager** page and choose a hostel. Change any details and selec
 Students can swipe horizontally through multiple photos on the public hostel cards. Only signed-in managers can upload or remove photos. No new D1 migration is needed for this feature.
 
 Students can select **Explore hostel** on every listing, including fully occupied hostels. The details view shows the hostel photos, room types, prices, distance, services and notes. An occupied hostel offers **Join waiting list**, and the resulting request is marked as a waiting-list request in the manager dashboard.
+
+## Confirm bookings and move-ins
+
+New room requests use references such as `BST-48273105`. Students can open **Track booking**, enter the reference and their phone number, accept a room offer, retrieve a private six-digit move-in code, cancel a request and confirm a completed move-in. Managers mark requests as contacted, offer rooms and enter the student's code only when the student physically arrives. A booking is counted as completed only after the student confirms the move-in.
 
 If the dashboard reports that photo storage is not connected, confirm that the R2 bucket is named `busitema-hostel-photos` and that the Worker has an R2 binding named exactly `PHOTOS`.
 
