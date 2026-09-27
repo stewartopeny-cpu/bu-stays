@@ -9,17 +9,24 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
 </head>
-<body>
+<body class="home-page">
+  <aside class="app-strip">
+    <span class="app-strip-icon" aria-hidden="true">⌂</span>
+    <div><strong>Your room search starts here</strong><small>Compare trusted student hostels around Busitema</small></div>
+    <a href="#hostels">Browse hostels</a>
+  </aside>
+  <div class="festival"><strong>BUSITEMA STUDENT HOUSING</strong><span>Real hostel details, semester prices and room information in one place</span></div>
   <header class="topbar">
-    <a class="brand" href="/"><img src="/logo-mark.svg" alt=""><span>Busitema Stays</span></a>
-    <nav><button class="link-button" id="profileBtn">Student details</button><a href="/manager.html">Manager</a></nav>
+    <a class="brand" href="/"><img src="/logo-mark.svg" alt=""><span>BUSITEMA <b>STAYS</b></span></a>
+    <nav><a class="active" href="#hostels">Find a hostel</a><a href="/booking.html">My bookings</a><button class="link-button" id="profileBtn">Student details</button><a href="/manager.html">For managers</a></nav>
   </header>
 
   <main>
     <section class="search-panel">
       <div>
-        <p class="eyebrow">HOSTELS NEAR BUSITEMA UNIVERSITY</p>
-        <h1>Find a room that fits your life and budget.</h1>
+        <p class="eyebrow">BUSITEMA UNIVERSITY HOSTELS</p>
+        <h1>Find a room that fits your pocket.</h1>
+        <p class="hero-copy">Search and filter student hostels by what matters to you.</p>
       </div>
       <div class="search-grid">
         <label class="search-box">Search hostel or location<input id="search" type="search" placeholder="Try Precious, Syaule…" autocomplete="off" aria-autocomplete="list" aria-controls="searchSuggestions"><span id="searchSuggestions" class="search-suggestions" role="listbox" hidden></span></label>
@@ -33,12 +40,54 @@
         <label><input type="checkbox" value="Wi-Fi"> Wi-Fi</label>
         <label><input type="checkbox" value="Security"> Security</label>
       </div>
+      <p id="heroResultCount" class="hero-result-count" aria-live="polite"></p>
     </section>
+
+    <nav class="quick-categories" aria-label="Quick hostel categories">
+      <button type="button" class="active" data-category="all">All hostels</button>
+      <button type="button" data-category="available">Available</button>
+      <button type="button" data-category="budget">Up to UGX 400k</button>
+      <button type="button" data-category="self-contained">Self-contained</button>
+      <button type="button" data-category="essentials">Water + electricity</button>
+      <button type="button" data-category="near">Near campus</button>
+    </nav>
 
     <section class="results-head"><div><h2>Hostels near campus</h2><p id="resultCount"></p></div><button id="clearFilters" class="secondary">Clear filters</button></section>
     <section id="hostels" class="hostel-grid" aria-live="polite"></section>
     <div id="empty" class="empty" hidden><h2>No exact match</h2><p>Try increasing the price or selecting fewer services.</p></div>
+
+    <section class="confidence-section" aria-labelledby="confidenceTitle">
+      <p class="eyebrow">A SAFER WAY TO FIND YOUR ROOM</p>
+      <h2 id="confidenceTitle">Book with confidence</h2>
+      <div class="confidence-grid">
+        <article class="confidence-card">
+          <span class="confidence-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="m9 12 2 2 4-4M12 3l2.1 1.5 2.6-.1.7 2.5 2.2 1.4-.9 2.5.9 2.5-2.2 1.4-.7 2.5-2.6-.1L12 21l-2.1-1.5-2.6.1-.7-2.5-2.2-1.4.9-2.5-.9-2.5 2.2-1.4.7-2.5 2.6.1L12 3Z"/></svg>
+          </span>
+          <div><h3>Compare clearly</h3><p>See room types, included services and semester prices before choosing.</p></div>
+        </article>
+        <article class="confidence-card">
+          <span class="confidence-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 5 6v5c0 4.6 2.9 8.2 7 10 4.1-1.8 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+          </span>
+          <div><h3>Confirm before paying</h3><p>The hostel manager first confirms that your selected room is available.</p></div>
+        </article>
+        <article class="confidence-card">
+          <span class="confidence-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M7.5 4H5.7A1.7 1.7 0 0 0 4 5.7C4 13.6 10.4 20 18.3 20a1.7 1.7 0 0 0 1.7-1.7v-1.8l-4-1-1 2.1a14 14 0 0 1-8.6-8.6l2.1-1-1-4Z"/></svg>
+          </span>
+          <div><h3>Easy follow-up</h3><p>Use your BST booking reference to track, confirm or cancel your request.</p></div>
+        </article>
+      </div>
+      <a class="confidence-link" href="/booking.html">Track a booking <span aria-hidden="true">→</span></a>
+    </section>
   </main>
+
+  <nav class="mobile-bottom-nav" aria-label="Mobile navigation">
+    <a class="active" href="#hostels"><span aria-hidden="true">⌕</span>Find a hostel</a>
+    <a href="/booking.html"><span aria-hidden="true">▣</span>My bookings</a>
+    <a href="/manager.html"><span aria-hidden="true">⌂</span>For managers</a>
+  </nav>
 
   <dialog id="profileDialog">
     <form method="dialog" id="profileForm" class="dialog-form">
@@ -64,6 +113,7 @@
       <label>Move-in date<input name="moveInDate" type="date"></label>
       <label>Message<textarea name="message" rows="3" placeholder="Anything the manager should know?"></textarea></label>
       <p id="bookingMessage" class="form-message"></p>
+      <a id="bookingTrackLink" class="booking-track-link" href="/booking.html" hidden>Track this booking</a>
       <div class="dialog-actions"><button type="button" class="secondary cancel-dialog">Continue browsing</button><button class="primary" value="default">Send room request</button></div>
     </form>
   </dialog>

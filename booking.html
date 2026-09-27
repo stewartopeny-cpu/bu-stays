@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#c99712">
+  <meta name="description" content="Track and confirm your Busitema Stays room request.">
+  <title>Track booking · Busitema Stays</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><img src="/logo-mark.svg" alt=""><span>Busitema Stays</span></a>
+    <nav><a href="/">Find hostels</a></nav>
+  </header>
+  <main class="booking-page">
+    <section class="booking-hero">
+      <p class="eyebrow">BOOKING CONFIRMATION</p>
+      <h1>Track your room request.</h1>
+      <p>Use the booking reference and phone number submitted with your request.</p>
+    </section>
+    <section class="booking-layout">
+      <form id="trackForm" class="panel manager-form track-form">
+        <h2>Find your booking</h2>
+        <label>Booking reference<input name="reference" placeholder="BST-48273105" autocomplete="off" required></label>
+        <label>Phone number<input name="phone" type="tel" placeholder="07…" autocomplete="tel" required></label>
+        <p id="trackMessage" class="form-message"></p>
+        <button class="primary">Track booking</button>
+      </form>
+      <section id="bookingResult" class="panel booking-result" hidden aria-live="polite"></section>
+    </section>
+  </main>
+  <script src="/booking.js"></script>
+</body>
+</html>

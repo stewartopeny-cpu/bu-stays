@@ -197,12 +197,34 @@ async function loadBookings() {
   const box = document.querySelector("#bookings");
   if (!response.ok) { box.innerHTML = "<p>Bookings will appear after the database is connected.</p>"; return; }
   const data = await response.json();
-  box.innerHTML = (data.bookings || []).map(booking => `<div class="booking-row"><strong>${escapeHtml(booking.full_name)}</strong> · ${escapeHtml(booking.hostel_name)}${String(booking.message || "").startsWith("[Waiting list]") ? ' · <span class="waiting-label">Waiting list</span>' : ""}<p>${escapeHtml(booking.phone)}${booking.email ? ` · ${escapeHtml(booking.email)}` : ""}<br>${escapeHtml(booking.room_type)} · Reference ${escapeHtml(booking.reference)}</p><select data-id="${Number(booking.id)}"><option ${booking.status === "pending" ? "selected" : ""}>pending</option><option ${booking.status === "contacted" ? "selected" : ""}>contacted</option><option ${booking.status === "confirmed" ? "selected" : ""}>confirmed</option><option ${booking.status === "cancelled" ? "selected" : ""}>cancelled</option></select></div>`).join("") || "<p>No room requests yet.</p>";
-  box.querySelectorAll("select").forEach(status => status.addEventListener("change", () => fetch("/api/manager/bookings", {
-    method: "PATCH",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ id: Number(status.dataset.id), status: status.value })
-  })));
+  const bookings = data.bookings || [];
+  const labels = { pending:"New request", contacted:"Contacted", room_offered:"Room offered", awaiting_move_in:"Awaiting move-in", checked_in:"Awaiting student confirmation", completed:"Completed", cancelled:"Cancelled", expired:"Expired", disputed:"Disputed" };
+  const stats = { active:bookings.filter(b => ["pending","contacted","room_offered","awaiting_move_in","checked_in"].includes(b.status)).length, completed:bookings.filter(b => b.status === "completed").length, disputed:bookings.filter(b => b.status === "disputed").length };
+  document.querySelector("#bookingStats").innerHTML = `<div><strong>${stats.active}</strong><span>Active</span></div><div><strong>${stats.completed}</strong><span>Completed</span></div><div><strong>${stats.disputed}</strong><span>Disputed</span></div>`;
+  box.innerHTML = bookings.map(booking => {
+    const status = booking.status === "confirmed" ? "completed" : booking.status;
+    let controls = "";
+    if (status === "pending") controls = `<button class="secondary booking-manager-action" data-action="contact" data-id="${Number(booking.id)}">Mark contacted</button>`;
+    if (["pending","contacted"].includes(status)) controls += `<button class="primary booking-manager-action" data-action="offer" data-id="${Number(booking.id)}">Offer room</button>`;
+    if (status === "awaiting_move_in") controls = `<form class="check-in-form" data-id="${Number(booking.id)}"><input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="6-digit code" required><button class="primary">Check in</button></form>`;
+    if (status === "disputed") controls = `<button class="primary booking-manager-action" data-action="resolve_complete" data-id="${Number(booking.id)}">Resolve as completed</button><button class="secondary booking-manager-action" data-action="resolve_cancel" data-id="${Number(booking.id)}">Resolve as cancelled</button>`;
+    if (!["completed","cancelled","expired","disputed"].includes(status)) controls += `<button class="secondary booking-manager-action" data-action="cancel" data-id="${Number(booking.id)}">Cancel</button>`;
+    return `<article class="booking-row"><div class="booking-row-head"><strong>${escapeHtml(booking.full_name)} · ${escapeHtml(booking.hostel_name)}</strong><span class="booking-status status-${escapeHtml(status)}">${escapeHtml(labels[status] || status)}</span></div>${String(booking.message || "").startsWith("[Waiting list]") ? '<span class="waiting-label">Waiting list</span>' : ""}<p><a href="tel:${escapeHtml(booking.phone)}">${escapeHtml(booking.phone)}</a>${booking.email ? ` · ${escapeHtml(booking.email)}` : ""}<br>${escapeHtml(booking.room_type)} · Reference <strong>${escapeHtml(booking.reference)}</strong></p><div class="manager-booking-actions">${controls}</div><p class="form-message booking-action-message" data-message-id="${Number(booking.id)}"></p></article>`;
+  }).join("") || "<p>No room requests yet.</p>";
+  box.querySelectorAll(".booking-manager-action").forEach(button => button.addEventListener("click", () => updateBooking(Number(button.dataset.id), button.dataset.action, null, button)));
+  box.querySelectorAll(".check-in-form").forEach(checkIn => checkIn.addEventListener("submit", event => { event.preventDefault(); const submit = checkIn.querySelector("button"); updateBooking(Number(checkIn.dataset.id), "check_in", new FormData(checkIn).get("code"), submit); }));
 }
+
+async function updateBooking(id, action, code, button) {
+  const message = document.querySelector(`[data-message-id="${id}"]`);
+  button.disabled = true;
+  message.textContent = "Updating…";
+  const response = await fetch("/api/manager/bookings", { method:"PATCH", headers:{"content-type":"application/json"}, body:JSON.stringify({ id, action, code }) });
+  const data = await response.json();
+  if (response.ok) await loadBookings();
+  else { message.textContent = data.error || "Could not update booking"; button.disabled = false; }
+}
+
+document.querySelector("#refreshBookings").addEventListener("click", loadBookings);
 
 fetch("/api/manager/hostels").then(response => setLogin(response.status !== 401)).catch(() => setLogin(false));

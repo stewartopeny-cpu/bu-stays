@@ -1,6 +1,7 @@
 const formatPrice = n => `UGX ${Number(n).toLocaleString("en-UG")}`;
 const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","'":"&#39;",'"':"&quot;"}[c]));
 let hostels = [...window.DEFAULT_HOSTELS];
+let quickCategory = "all";
 
 const elements = {
   grid: document.querySelector("#hostels"), empty: document.querySelector("#empty"), count: document.querySelector("#resultCount"),
@@ -41,7 +42,17 @@ function filtered() {
     const text = `${h.name} ${h.location} ${h.notes || ""}`.toLowerCase();
     const serviceMatches = services.filter(s => (h.services || []).includes(s)).length;
     const servicesPass = services.length === 0 || serviceMatches >= Math.min(2, services.length);
-    return (!query || text.includes(query)) && Number(h.minPrice) <= price && (!type || (h.types || []).includes(type)) && servicesPass;
+    const hostelServices = h.services || [];
+    const hostelTypes = h.types || [];
+    const isAvailable = String(h.availability || "available").toLowerCase() !== "full";
+    const distance = Number.parseFloat(String(h.distance || ""));
+    const categoryPass = quickCategory === "all"
+      || (quickCategory === "available" && isAvailable)
+      || (quickCategory === "budget" && Number(h.minPrice) <= 400000)
+      || (quickCategory === "self-contained" && hostelTypes.includes("Self-contained"))
+      || (quickCategory === "essentials" && hostelServices.includes("Water") && hostelServices.includes("Electricity"))
+      || (quickCategory === "near" && Number.isFinite(distance) && distance <= 2);
+    return (!query || text.includes(query)) && Number(h.minPrice) <= price && (!type || hostelTypes.includes(type)) && servicesPass && categoryPass;
   });
 }
 
@@ -66,14 +77,46 @@ function renderSuggestions() {
 function photoGallery(hostel) {
   const photos = Array.isArray(hostel.photos) ? hostel.photos.filter(url => String(url).startsWith("/photos/")).slice(0, 5) : [];
   if (!photos.length) return '<div class="photo-placeholder" aria-label="Photo coming soon"><svg viewBox="0 0 64 64" aria-hidden="true"><path fill="currentColor" d="M8 29 32 10l24 19v27H39V39H25v17H8Z"/></svg></div>';
-  return `<div class="photo-wrap"><div class="photo-gallery" role="region" aria-label="Photos of ${escapeHtml(hostel.name)}">
+  return `<div class="photo-wrap"><div class="photo-gallery" role="region" tabindex="0" aria-label="Photos of ${escapeHtml(hostel.name)}. Swipe or use the left and right arrow keys.">
     ${photos.map((url, index) => `<img src="${escapeHtml(url)}" alt="${escapeHtml(hostel.name)} photo ${index + 1}" loading="lazy">`).join("")}
-  </div>${photos.length > 1 ? `<span class="photo-count">Swipe · ${photos.length} photos</span>` : ""}</div>`;
+  </div>${photos.length > 1 ? `<button type="button" class="gallery-arrow gallery-prev" aria-label="Previous photo">&#8249;</button><button type="button" class="gallery-arrow gallery-next" aria-label="Next photo">&#8250;</button><span class="photo-count"><b>1</b> / ${photos.length}</span>` : ""}</div>`;
+}
+
+function positionGalleryPhotos(root = document) {
+  root.querySelectorAll(".photo-gallery img").forEach(image => {
+    const position = () => image.classList.toggle("portrait-photo", image.naturalHeight > image.naturalWidth * 1.12);
+    if (image.complete && image.naturalWidth) position();
+    else image.addEventListener("load", position, { once:true });
+  });
+}
+
+function activatePhotoGalleries(root = document) {
+  root.querySelectorAll(".photo-wrap").forEach(wrap => {
+    const gallery = wrap.querySelector(".photo-gallery");
+    const images = [...wrap.querySelectorAll(".photo-gallery img")];
+    const counter = wrap.querySelector(".photo-count b");
+    if (!gallery || images.length < 2) return;
+    const updateCounter = () => {
+      const page = Math.min(images.length, Math.max(1, Math.round(gallery.scrollLeft / Math.max(gallery.clientWidth, 1)) + 1));
+      if (counter) counter.textContent = String(page);
+    };
+    const move = direction => gallery.scrollBy({ left: direction * gallery.clientWidth, behavior:"smooth" });
+    wrap.querySelector(".gallery-prev")?.addEventListener("click", event => { event.stopPropagation(); move(-1); });
+    wrap.querySelector(".gallery-next")?.addEventListener("click", event => { event.stopPropagation(); move(1); });
+    gallery.addEventListener("scroll", updateCounter, { passive:true });
+    gallery.addEventListener("keydown", event => {
+      if (event.key === "ArrowLeft") { event.preventDefault(); move(-1); }
+      if (event.key === "ArrowRight") { event.preventDefault(); move(1); }
+    });
+    updateCounter();
+  });
 }
 
 function render() {
   const list = filtered();
   elements.count.textContent = `${list.length} of ${hostels.length} hostels match`;
+  const heroCount = document.querySelector("#heroResultCount");
+  if (heroCount) heroCount.textContent = `${list.length} ${list.length === 1 ? "hostel matches" : "hostels match"} your search and filters.`;
   elements.empty.hidden = list.length > 0;
   elements.grid.innerHTML = list.map((h, index) => `
     <article class="hostel-card">
@@ -86,6 +129,8 @@ function render() {
         <div class="card-actions"><button class="primary explore" data-index="${hostels.indexOf(h)}">Explore hostel</button></div>
       </div>
     </article>`).join("");
+  positionGalleryPhotos(elements.grid);
+  activatePhotoGalleries(elements.grid);
   document.querySelectorAll(".explore").forEach(button => button.addEventListener("click", () => openExplore(hostels[Number(button.dataset.index)])));
 }
 
@@ -120,6 +165,8 @@ function openExplore(hostel) {
       </div></section>
       <div class="explore-actions"><button type="button" class="secondary close-explore">Continue browsing</button><button type="button" class="primary explore-request">${isFull ? "Join waiting list" : "Request room"}</button></div>
     </div>`;
+  positionGalleryPhotos(elements.exploreContent);
+  activatePhotoGalleries(elements.exploreContent);
   elements.exploreContent.querySelector(".close-explore").addEventListener("click", () => elements.exploreDialog.close());
   elements.exploreContent.querySelector(".explore-request").addEventListener("click", () => {
     elements.exploreDialog.close();
@@ -130,6 +177,7 @@ function openExplore(hostel) {
 
 function openBooking(hostel, waitingList = false) {
   elements.bookingForm.reset(); fill(elements.bookingForm, profile());
+  document.querySelector("#bookingTrackLink").hidden = true;
   elements.bookingForm.elements.hostelName.value = hostel.name;
   elements.bookingForm.dataset.waitingList = waitingList ? "true" : "false";
   document.querySelector("#bookingTitle").textContent = waitingList ? `Join the waiting list for ${hostel.name}` : `Request a room at ${hostel.name}`;
@@ -157,7 +205,9 @@ elements.bookingForm.addEventListener("submit", async event => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Request failed");
     document.querySelector("#bookingMessage").textContent = `${elements.bookingForm.dataset.waitingList === "true" ? "Waiting-list request" : "Room request"} received. Reference: ${result.reference}`;
-    setTimeout(() => elements.bookingDialog.close(), 1800);
+    const trackLink = document.querySelector("#bookingTrackLink");
+    trackLink.href = result.trackingUrl || `/booking.html?reference=${encodeURIComponent(result.reference)}`;
+    trackLink.hidden = false;
   } catch (error) { document.querySelector("#bookingMessage").textContent = error.message; }
   finally { button.disabled = false; }
 });
@@ -166,7 +216,22 @@ elements.bookingForm.addEventListener("submit", async event => {
 elements.search.addEventListener("input", () => { render(); renderSuggestions(); });
 elements.search.addEventListener("focus", renderSuggestions);
 elements.search.addEventListener("blur", () => setTimeout(() => { elements.suggestions.hidden = true; }, 150));
-document.querySelector("#clearFilters").addEventListener("click", () => { elements.search.value="";elements.price.value="";elements.type.value="";elements.suggestions.hidden=true;document.querySelectorAll('.service-filter input').forEach(i=>i.checked=false);render(); });
+document.querySelector("#clearFilters").addEventListener("click", () => {
+  elements.search.value = "";
+  elements.price.value = "";
+  elements.type.value = "";
+  elements.suggestions.hidden = true;
+  quickCategory = "all";
+  document.querySelectorAll('.service-filter input').forEach(input => input.checked = false);
+  document.querySelectorAll(".quick-categories button").forEach(button => button.classList.toggle("active", button.dataset.category === "all"));
+  render();
+});
+document.querySelectorAll(".quick-categories button").forEach(button => button.addEventListener("click", () => {
+  quickCategory = button.dataset.category || "all";
+  document.querySelectorAll(".quick-categories button").forEach(item => item.classList.toggle("active", item === button));
+  render();
+  document.querySelector("#hostels")?.scrollIntoView({ behavior:"smooth", block:"start" });
+}));
 document.querySelector("#profileBtn").addEventListener("click", () => { elements.profileForm.reset();fill(elements.profileForm,profile());elements.profileDialog.showModal(); });
 document.querySelectorAll("[data-close-dialog], .cancel-dialog").forEach(button => button.addEventListener("click", () => button.closest("dialog").close()));
 [elements.profileDialog, elements.bookingDialog, elements.exploreDialog].forEach(dialog => dialog.addEventListener("click", event => { if (event.target === dialog) dialog.close(); }));
