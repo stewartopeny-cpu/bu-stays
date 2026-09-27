@@ -21,6 +21,10 @@ The source already contains an R2 binding named `PHOTOS`. Create the bucket befo
    - Root directory: `/`
 5. Deploy. The first public address will end in `.workers.dev`.
 
+After deployment, open `/api/status` on the public address. The response must
+show `"build":"2026-09-28-booking-v2"`. If that value is missing, Cloudflare
+is still serving an older Worker deployment or a different production branch.
+
 ## Connect the database
 
 1. In Cloudflare, create a D1 database named `busitema-stays-db`.

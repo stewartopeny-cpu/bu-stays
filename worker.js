@@ -1,7 +1,8 @@
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
+const BUILD_VERSION = "2026-09-28-booking-v2";
 
 const reply = (data, status = 200, headers = {}) =>
-  new Response(JSON.stringify(data), { status, headers: { ...JSON_HEADERS, ...headers } });
+  new Response(JSON.stringify(data), { status, headers: { ...JSON_HEADERS, "x-busitema-build": BUILD_VERSION, ...headers } });
 
 function cookies(request) {
   return Object.fromEntries((request.headers.get("cookie") || "").split(";").map(v => v.trim().split("=")).filter(v => v.length === 2));
@@ -16,6 +17,14 @@ async function signature(value, secret) {
 const BOOKING_STATUS = new Set(["pending", "contacted", "room_offered", "awaiting_move_in", "checked_in", "completed", "cancelled", "expired", "disputed"]);
 
 const normalizePhone = value => String(value || "").replace(/\D/g, "").replace(/^256/, "0");
+
+// Keep tracking compatible with references issued by older versions of the
+// website. Students often type or paste references with different spacing or
+// without the hyphens shown in the manager dashboard.
+const normalizeReference = value => String(value || "")
+  .trim()
+  .toUpperCase()
+  .replace(/[\s\-_–—]+/g, "");
 
 function phoneMatches(saved, entered) {
   const savedPhone = normalizePhone(saved);
@@ -39,7 +48,15 @@ async function moveInCode(booking, env) {
 }
 
 async function bookingByReference(db, reference) {
-  return db.prepare("SELECT * FROM bookings WHERE UPPER(reference) = UPPER(?)").bind(String(reference || "").trim()).first();
+  const normalized = normalizeReference(reference);
+  if (!normalized) return null;
+  return db.prepare(`
+    SELECT * FROM bookings
+    WHERE UPPER(
+      REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(TRIM(reference), '-', ''), '_', ''), ' ', ''), '–', ''), '—', '')
+    ) = ?
+    LIMIT 1
+  `).bind(normalized).first();
 }
 
 async function recordBookingChange(db, booking, actor, nextStatus, action) {
@@ -114,7 +131,7 @@ async function api(request, env) {
   const path = url.pathname;
 
   if (path === "/api/status") {
-    return reply({ online: true, database: Boolean(env.DB), email: Boolean(env.RESEND_API_KEY) });
+    return reply({ online: true, database: Boolean(env.DB), email: Boolean(env.RESEND_API_KEY), build: BUILD_VERSION });
   }
 
   if (path === "/api/hostels" && request.method === "GET") {
