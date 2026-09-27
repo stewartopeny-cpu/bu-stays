@@ -130,6 +130,7 @@ function openExplore(hostel) {
 
 function openBooking(hostel, waitingList = false) {
   elements.bookingForm.reset(); fill(elements.bookingForm, profile());
+  document.querySelector("#bookingTrackLink").hidden = true;
   elements.bookingForm.elements.hostelName.value = hostel.name;
   elements.bookingForm.dataset.waitingList = waitingList ? "true" : "false";
   document.querySelector("#bookingTitle").textContent = waitingList ? `Join the waiting list for ${hostel.name}` : `Request a room at ${hostel.name}`;
@@ -157,7 +158,9 @@ elements.bookingForm.addEventListener("submit", async event => {
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Request failed");
     document.querySelector("#bookingMessage").textContent = `${elements.bookingForm.dataset.waitingList === "true" ? "Waiting-list request" : "Room request"} received. Reference: ${result.reference}`;
-    setTimeout(() => elements.bookingDialog.close(), 1800);
+    const trackLink = document.querySelector("#bookingTrackLink");
+    trackLink.href = result.trackingUrl || `/booking.html?reference=${encodeURIComponent(result.reference)}`;
+    trackLink.hidden = false;
   } catch (error) { document.querySelector("#bookingMessage").textContent = error.message; }
   finally { button.disabled = false; }
 });

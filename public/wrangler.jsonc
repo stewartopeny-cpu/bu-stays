@@ -1,0 +1,18 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "busitema-stays",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-09-22",
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*", "/photos/*"]
+  },
+  "r2_buckets": [
+    {
+      "binding": "PHOTOS",
+      "bucket_name": "busitema-hostel-photos"
+    }
+  ],
+  "observability": { "enabled": true }
+}

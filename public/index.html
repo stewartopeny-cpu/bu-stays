@@ -12,7 +12,7 @@
 <body>
   <header class="topbar">
     <a class="brand" href="/"><img src="/logo-mark.svg" alt=""><span>Busitema Stays</span></a>
-    <nav><button class="link-button" id="profileBtn">Student details</button><a href="/manager.html">Manager</a></nav>
+    <nav><a href="/booking.html">Track booking</a><button class="link-button" id="profileBtn">Student details</button><a href="/manager.html">Manager</a></nav>
   </header>
 
   <main>
@@ -38,6 +38,32 @@
     <section class="results-head"><div><h2>Hostels near campus</h2><p id="resultCount"></p></div><button id="clearFilters" class="secondary">Clear filters</button></section>
     <section id="hostels" class="hostel-grid" aria-live="polite"></section>
     <div id="empty" class="empty" hidden><h2>No exact match</h2><p>Try increasing the price or selecting fewer services.</p></div>
+
+    <section class="confidence-section" aria-labelledby="confidenceTitle">
+      <p class="eyebrow">A SAFER WAY TO FIND YOUR ROOM</p>
+      <h2 id="confidenceTitle">Book with confidence</h2>
+      <div class="confidence-grid">
+        <article class="confidence-card">
+          <span class="confidence-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="m9 12 2 2 4-4M12 3l2.1 1.5 2.6-.1.7 2.5 2.2 1.4-.9 2.5.9 2.5-2.2 1.4-.7 2.5-2.6-.1L12 21l-2.1-1.5-2.6.1-.7-2.5-2.2-1.4.9-2.5-.9-2.5 2.2-1.4.7-2.5 2.6.1L12 3Z"/></svg>
+          </span>
+          <div><h3>Compare clearly</h3><p>See room types, included services and semester prices before choosing.</p></div>
+        </article>
+        <article class="confidence-card">
+          <span class="confidence-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 5 6v5c0 4.6 2.9 8.2 7 10 4.1-1.8 7-5.4 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg>
+          </span>
+          <div><h3>Confirm before paying</h3><p>The hostel manager first confirms that your selected room is available.</p></div>
+        </article>
+        <article class="confidence-card">
+          <span class="confidence-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M7.5 4H5.7A1.7 1.7 0 0 0 4 5.7C4 13.6 10.4 20 18.3 20a1.7 1.7 0 0 0 1.7-1.7v-1.8l-4-1-1 2.1a14 14 0 0 1-8.6-8.6l2.1-1-1-4Z"/></svg>
+          </span>
+          <div><h3>Easy follow-up</h3><p>Use your BST booking reference to track, confirm or cancel your request.</p></div>
+        </article>
+      </div>
+      <a class="confidence-link" href="/booking.html">Track a booking <span aria-hidden="true">→</span></a>
+    </section>
   </main>
 
   <dialog id="profileDialog">
@@ -64,6 +90,7 @@
       <label>Move-in date<input name="moveInDate" type="date"></label>
       <label>Message<textarea name="message" rows="3" placeholder="Anything the manager should know?"></textarea></label>
       <p id="bookingMessage" class="form-message"></p>
+      <a id="bookingTrackLink" class="booking-track-link" href="/booking.html" hidden>Track this booking</a>
       <div class="dialog-actions"><button type="button" class="secondary cancel-dialog">Continue browsing</button><button class="primary" value="default">Send room request</button></div>
     </form>
   </dialog>
