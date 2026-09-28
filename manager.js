@@ -9,6 +9,8 @@ let hostels = [...window.DEFAULT_HOSTELS];
 let photoUrls = [];
 let selectedOriginalName = "";
 
+const splitList = value => String(value || "").split(",").map(item => item.trim()).filter(Boolean);
+
 const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, character => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;"
 }[character]));
@@ -50,9 +52,11 @@ async function loadDashboard() {
     else map.set(change.name, { ...(map.get(change.name) || {}), ...change });
   }
   hostels = [...map.values()];
-  select.innerHTML = '<option value="">New hostel</option>' + hostels.map((hostel, index) =>
-    `<option value="${index}">${escapeHtml(hostel.name)}${hostel.status === "inactive" ? " · Hidden" : ""}</option>`).join("");
-  resetListingActions();
+  const selectedName = selectedOriginalName;
+  select.innerHTML = '<option value="">Add a new hostel</option>' + hostels.map(hostel =>
+    `<option value="${escapeHtml(hostel.name)}">${escapeHtml(hostel.name)}${hostel.status === "inactive" ? " · Hidden" : ""}</option>`).join("");
+  if (selectedName && hostels.some(hostel => hostel.name === selectedName)) select.value = selectedName;
+  else if (selectedName) resetEditor();
   await loadBookings();
 }
 
@@ -62,10 +66,32 @@ function resetListingActions() {
   document.querySelector("#deleteHostel").hidden = true;
 }
 
+function setEditorMode(hostel) {
+  const editing = Boolean(hostel);
+  document.querySelector("#listingFormTitle").textContent = editing ? `Editing ${hostel.name}` : "Add a hostel";
+  document.querySelector("#editingNotice").textContent = editing ? "Update the details below, then press Save changes." : "Enter the details for the new hostel.";
+  document.querySelector("#saveListing").textContent = editing ? "Save changes" : "Add hostel";
+  document.querySelector("#cancelEdit").hidden = !editing;
+}
+
+function resetEditor() {
+  form.reset();
+  select.value = "";
+  photoUrls = [];
+  photoFiles.value = "";
+  photoMessage.textContent = "";
+  document.querySelector("#saveMessage").textContent = "";
+  resetListingActions();
+  setEditorMode(null);
+  renderPhotoPreviews();
+}
+
 function listingPayload(statusOverride) {
   const input = Object.fromEntries(new FormData(form));
   input.minPrice = Number(input.minPrice);
   input.maxPrice = Number(input.maxPrice);
+  input.types = splitList(input.types);
+  input.services = splitList(input.services);
   input.photos = photoUrls;
   input.originalName = selectedOriginalName || input.name;
   if (statusOverride) input.status = statusOverride;
@@ -74,15 +100,28 @@ function listingPayload(statusOverride) {
 
 async function saveListing(input, successMessage) {
   const message = document.querySelector("#saveMessage");
+  if (!Number.isFinite(input.minPrice) || !Number.isFinite(input.maxPrice) || input.minPrice < 0 || input.maxPrice < input.minPrice) {
+    message.textContent = "Check the prices: maximum price must be equal to or higher than minimum price.";
+    return false;
+  }
   message.textContent = "Saving…";
+  const saveButton = document.querySelector("#saveListing");
+  saveButton.disabled = true;
   const response = await fetch("/api/manager/hostels", {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input)
   });
-  const data = await response.json();
+  const data = await response.json().catch(() => ({}));
+  saveButton.disabled = false;
   message.textContent = response.ok ? successMessage : data.error || "Could not save";
-  if (response.ok) await loadDashboard();
+  if (response.ok) {
+    selectedOriginalName = input.name;
+    await loadDashboard();
+    const saved = hostels.find(hostel => hostel.name === input.name);
+    if (saved) populateEditor(saved);
+    message.textContent = successMessage;
+  }
   return response.ok;
 }
 
@@ -110,15 +149,12 @@ function renderPhotoPreviews() {
   }));
 }
 
-select.addEventListener("change", () => {
-  const selected = select.value;
+function populateEditor(hostel) {
   form.reset();
-  select.value = selected;
+  select.value = hostel.name;
   photoUrls = [];
   photoMessage.textContent = "";
   resetListingActions();
-  if (selected === "") { renderPhotoPreviews(); return; }
-  const hostel = hostels[Number(selected)];
   selectedOriginalName = hostel.name;
   for (const [key, value] of Object.entries(hostel)) {
     if (!form.elements[key]) continue;
@@ -129,8 +165,17 @@ select.addEventListener("change", () => {
   visibilityButton.hidden = false;
   visibilityButton.textContent = hostel.status === "inactive" ? "Show on public website" : "Hide from public website";
   document.querySelector("#deleteHostel").hidden = false;
+  setEditorMode(hostel);
   renderPhotoPreviews();
+}
+
+select.addEventListener("change", () => {
+  const hostel = hostels.find(item => item.name === select.value);
+  if (!hostel) { resetEditor(); return; }
+  populateEditor(hostel);
 });
+
+document.querySelector("#cancelEdit").addEventListener("click", resetEditor);
 
 document.querySelector("#uploadPhotos").addEventListener("click", async () => {
   const hostelName = form.elements.name.value.trim();
@@ -185,9 +230,7 @@ document.querySelector("#deleteHostel").addEventListener("click", async () => {
   const data = await response.json();
   message.textContent = response.ok ? "Hostel permanently deleted." : data.error || "Could not delete hostel";
   if (response.ok) {
-    form.reset();
-    photoUrls = [];
-    renderPhotoPreviews();
+    resetEditor();
     await loadDashboard();
   }
 });

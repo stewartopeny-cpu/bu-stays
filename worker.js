@@ -1,5 +1,5 @@
 const JSON_HEADERS = { "content-type": "application/json; charset=utf-8" };
-const BUILD_VERSION = "2026-09-28-booking-v2";
+const BUILD_VERSION = "2026-09-28-manager-edit-v1";
 
 const reply = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), { status, headers: { ...JSON_HEADERS, "x-busitema-build": BUILD_VERSION, ...headers } });
@@ -218,9 +218,32 @@ async function api(request, env) {
     const input = await body(request);
     if (!String(input.name || "").trim()) return reply({ error: "Hostel name is required" }, 400);
     const name = String(input.name).trim();
+    if (name.length > 100) return reply({ error: "Hostel name is too long" }, 400);
+    const minPrice = Number(input.minPrice);
+    const maxPrice = Number(input.maxPrice);
+    if (!Number.isFinite(minPrice) || !Number.isFinite(maxPrice) || minPrice < 0 || maxPrice < minPrice) {
+      return reply({ error: "Maximum price must be equal to or higher than minimum price" }, 400);
+    }
     const originalName = String(input.originalName || name).trim();
     const status = input.status === "inactive" ? "inactive" : "active";
-    const payload = JSON.stringify({ ...input, name: undefined, originalName: undefined, status: undefined });
+    const availability = ["Available", "Few rooms left", "Full"].includes(input.availability) ? input.availability : "Available";
+    const types = Array.isArray(input.types) ? input.types : String(input.types || "").split(",");
+    const services = Array.isArray(input.services) ? input.services : String(input.services || "").split(",");
+    const photos = Array.isArray(input.photos) ? input.photos.filter(photo => photoKeyFromUrl(photo)).slice(0, 5) : [];
+    const payload = JSON.stringify({
+      location: String(input.location || "").trim().slice(0, 120),
+      availability,
+      minPrice,
+      maxPrice,
+      types: types.map(value => String(value).trim()).filter(Boolean).slice(0, 10),
+      services: services.map(value => String(value).trim()).filter(Boolean).slice(0, 12),
+      electricity: String(input.electricity || "").trim().slice(0, 80),
+      distance: String(input.distance || "").trim().slice(0, 120),
+      gender: String(input.gender || "Both").trim().slice(0, 80),
+      rooms: String(input.rooms || "").trim().slice(0, 160),
+      notes: String(input.notes || "").trim().slice(0, 1000),
+      photos
+    });
     const statements = [];
     if (originalName && originalName !== name) {
       statements.push(dbRequired(env).prepare(
@@ -231,7 +254,7 @@ async function api(request, env) {
       "INSERT INTO hostel_edits (name, payload, status, updated_by, updated_at) VALUES (?, ?, ?, 'owner', CURRENT_TIMESTAMP) ON CONFLICT(name) DO UPDATE SET payload=excluded.payload, status=excluded.status, updated_by='owner', updated_at=CURRENT_TIMESTAMP"
     ).bind(name, payload, status));
     await dbRequired(env).batch(statements);
-    return reply({ ok: true });
+    return reply({ ok: true, hostel: { name, status, ...JSON.parse(payload) } });
   }
 
   if (path === "/api/manager/hostels" && request.method === "DELETE") {
